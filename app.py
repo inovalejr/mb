@@ -161,3 +161,16 @@ class AgentNodes:
         self.llm = llm
 
     def route(self, state: Agent
+import gradio as gr
+import os
+
+# 1 - Cria a interface
+def saudacao(nome):
+    return f"Olá, {nome}!"
+
+demo = gr.Interface(fn=saudacao, inputs="text", outputs="text")
+
+# 2 - Configura a porta e sobe o servidor
+port = int(os.environ.get("PORT", os.environ.get("OPEN_PORT", 8080)))
+demo.launch(server_name="0.0.0.0", server_port=port, share=False)
+
