@@ -6,3 +6,7 @@ scikit-learn
 openai
 google-generativeai
 pypdf
+langgraph
+langchain-core
+transformers
+torch
