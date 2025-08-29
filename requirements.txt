@@ -1,0 +1,8 @@
+gradio
+duckdb
+pandas
+sentence-transformers
+scikit-learn
+openai
+google-generativeai
+pypdf
