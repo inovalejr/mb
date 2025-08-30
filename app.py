@@ -58,10 +58,10 @@ class HybridRetriever:
     def __init__(self, bases: Dict[str, pd.DataFrame]):
         self.bases = bases
         self.text_cols = {
-            "Sites":     [c for c in bases["Sites"].columns if c.lower() in {"codigo","estado","tipodesite","observacao","descricao","nome"}],
-            "Stoppers":  [c for c in bases["Stoppers"].columns if c.lower() in {"cod_stopper","descricao","criticidade","risco","base","status","observacao"}],
-            "Projeto":   [c for c in bases["Projeto"].columns if c.lower() in {"codigo","fase","observacao","descricao","escopo"}],
-            "Tarefas":   [c for c in bases["Tarefas"].columns if c.lower() in {"codigo","atividade","status","observacao","descricao","executor"}],
+            "Sites": [c for c in bases["Sites"].columns if c.lower() in {"codigo","estado","tipodesite","observacao","descricao","nome"}],
+            "Stoppers": [c for c in bases["Stoppers"].columns if c.lower() in {"cod_stopper","descricao","criticidade","risco","base","status","observacao"}],
+            "Projeto": [c for c in bases["Projeto"].columns if c.lower() in {"codigo","fase","observacao","descricao","escopo"}],
+            "Tarefas": [c for c in bases["Tarefas"].columns if c.lower() in {"codigo","atividade","status","observacao","descricao","executor"}],
         }
         self.indexes = {name: SemanticIndex(df, self.text_cols.get(name) or df.columns.tolist())
                         for name, df in bases.items()}
@@ -120,7 +120,7 @@ class LLMProvider:
             )
             return resp.choices[0].message.content.strip()
         # Gemini path
-        prompt = "\n\n".join(f"[{m['role']}] {m['content']}" for m in messages)
+        prompt = "\n\n".n(f"[{m['role']}] {m['content']}" for m in messages)
         out = self.gem.generate_content(prompt)
         return (out.text or "").strip()
 
@@ -153,24 +153,57 @@ class AgentState(BaseModel):
     errors: List[str] = []
 
 # =========================
-# Nós do Agente
+# Nós do Agente (ajustados para serem chamados por Gradio)
 # =========================
+llm_provider = LLMProvider()
+csv_paths = {
+    "Sites": os.path.join(DATA_DIR, "sites.csv"),
+    "Stoppers": os.path.join(DATA_DIR, "stoppers.csv"),
+    "Projeto": os.path.join(DATA_DIR, "projetos.csv"),
+    "Tarefas": os.path.join(DATA_DIR, "tarefas.csv"),
+}
+bases = load_bases(csv_paths)
+retriever = HybridRetriever(bases)
+
 class AgentNodes:
     def __init__(self, retriever: HybridRetriever, llm: LLMProvider):
         self.retriever = retriever
         self.llm = llm
 
-    def route(self, state: Agent
-import gradio as gr
-import os
+    def route(self, state: AgentState):
+        pass # Lógica de roteamento aqui
+
+    def get_final_answer(self, state: AgentState):
+        return {"answer": "A resposta final do agente."} # Resposta final aqui
+
+# Constrói o grafo do LangGraph
+builder = StateGraph(AgentState)
+agent_nodes = AgentNodes(retriever, llm_provider)
+
+# Cria uma função para executar o agente e obter a resposta
+def run_agent(question: str, pdf_text: str = "") -> str:
+    state = AgentState(question=question, pdf_text=pdf_text)
+    # Aqui, você precisaria de um grafo mais complexo para um agente de verdade
+    # Como não temos o grafo completo, vamos apenas retornar uma resposta de teste
+    return "Desculpe, o agente completo ainda não está implementado."
+
+# =========================
+# Interface Gradio
+# =========================
+def responder_pergunta(pergunta, pdf_file):
+    pdf_text = extract_pdf_text(pdf_file)
+    # Chama a função que executa o agente
+    return run_agent(pergunta, pdf_text)
 
 # 1 - Cria a interface
-def saudacao(nome):
-    return f"Olá, {nome}!"
-
-demo = gr.Interface(fn=saudacao, inputs="text", outputs="text")
+demo = gr.Interface(
+    fn=responder_pergunta,
+    inputs=["text", "file"], # Um campo de texto para a pergunta e um para o PDF
+    outputs="text", # Onde a resposta vai aparecer
+    title="Agente RAG - Inovalejr",
+    description="Faça uma pergunta e receba uma resposta baseada nos dados do projeto."
+)
 
 # 2 - Configura a porta e sobe o servidor
 port = int(os.environ.get("PORT", os.environ.get("OPEN_PORT", 8080)))
 demo.launch(server_name="0.0.0.0", server_port=port, share=False)
-
