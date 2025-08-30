@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for 332 on 2025-08-29T23:34:58Z
+# fly.toml app configuration file generated for 232 on 2025-08-30T01:00:40Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = '332'
+app = '232'
 primary_region = 'gig'
 
 [build]
