@@ -5,11 +5,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# (opcional) baixar o modelo de embeddings na build para evitar cold start
-# RUN python - << 'PY'
-# from sentence_transformers import SentenceTransformer
-# SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-# PY
+# 🔽 Baixar modelo já na fase de build (evita travar no deploy)
+RUN python - << 'PY'
+from sentence_transformers import SentenceTransformer
+SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+PY
 
 COPY . .
 
