@@ -1,12 +1,7 @@
-gradio
-duckdb
 pandas
-sentence-transformers
+duckdb
 scikit-learn
-openai
-google-generativeai
-pypdf
+sentence-transformers
+gradio
 langgraph
-langchain-core
-transformers
-torch
+pydantic
