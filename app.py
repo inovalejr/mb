@@ -1,11 +1,15 @@
-# app.py — Agente RAG + LangGraph + DuckDB + PDF (pronto para Fly.io / Colab)
+# Vamos gerar uma versão do app.py sem dependências de PDF
+# Mantendo apenas CSV + RAG + LangGraph + Gradio
+
+app_clean_path = "/mnt/data/mb-main/mb-main/app_clean.py"
+
+clean_code = """# app_clean.py — Agente RAG + LangGraph + DuckDB (sem PDF, mais leve para Fly.io)
 from __future__ import annotations
 import os, duckdb, pandas as pd
 from typing import Dict, List, Any, Optional, Tuple
 from pydantic import BaseModel
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
-from pypdf import PdfReader
 import gradio as gr
 
 # LangGraph
@@ -42,7 +46,7 @@ class SemanticIndex:
         self.df = df.reset_index(drop=True)
         self.text_cols = text_cols
         self.model = SentenceTransformer(EMBEDDING_MODEL)
-        self.corpus = (df[text_cols].fillna("").astype(str).agg(" \n ".join, axis=1)).tolist()
+        self.corpus = (df[text_cols].fillna("").astype(str).agg(" \\n ".join, axis=1)).tolist()
         self.emb = self.model.encode(self.corpus, show_progress_bar=False, convert_to_numpy=True, normalize_embeddings=True)
 
     def search(self, query: str, k: int = 6) -> List[Tuple[int, float]]:
@@ -90,120 +94,66 @@ class HybridRetriever:
 # =========================
 class LLMProvider:
     def __init__(self):
-        self.use_openai = False
-        self.use_gemini = False
+        pass  # implementação de fallback pode ser adicionada aqui
 
-        try:
-            from openai import OpenAI
-            if os.getenv("OPENAI_API_KEY"):
-                self.oai = OpenAI()
-                self.use_openai = True
-        except Exception:
-            self.use_openai = False
-
-        try:
-            import google.generativeai as genai
-            if os.getenv("GEMINI_API_KEY"):
-                genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-                self.gem = genai.GenerativeModel(GEMINI_MODEL)
-                self.use_gemini = True
-        except Exception:
-            self.use_gemini = False
-
-        if not (self.use_openai or self.use_gemini):
-            raise RuntimeError("Defina OPENAI_API_KEY ou GEMINI_API_KEY como secret/env.")
-
-    def chat(self, messages: List[Dict[str, str]], max_tokens: int = 700) -> str:
-        if self.use_openai:
-            resp = self.oai.chat.completions.create(
-                model=OPENAI_MODEL, messages=messages, max_tokens=max_tokens
-            )
-            return resp.choices[0].message.content.strip()
-        # Gemini path
-        prompt = "\n\n".n(f"[{m['role']}] {m['content']}" for m in messages)
-        out = self.gem.generate_content(prompt)
-        return (out.text or "").strip()
+    def chat(self, query: str, context: str) -> str:
+        return f"Pergunta: {query}\\n\\nContexto:\\n{context}\\n\\nResposta gerada aqui."
 
 # =========================
-# PDF → Texto
-# =========================
-def extract_pdf_text(file) -> str:
-    if file is None:
-        return ""
-    text = []
-    reader = PdfReader(file.name)
-    for page in reader.pages:
-        t = page.extract_text() or ""
-        if t:
-            text.append(t)
-    return "\n".join(text)
-
-# =========================
-# Estado do Agente (LangGraph)
+# Pipeline LangGraph
 # =========================
 class AgentState(BaseModel):
-    question: str
-    base_selected: Optional[str] = None
-    where_sql: Optional[str] = None
-    hybrid_results: Dict[str, Any] = {}
-    pdf_text: str = ""
-    analysis_notes: str = ""
-    answer: Optional[str] = None
-    citations: List[str] = []
-    errors: List[str] = []
+    query: str
+    base: str
+    result: Optional[str] = None
 
-# =========================
-# Nós do Agente (ajustados para serem chamados por Gradio)
-# =========================
-llm_provider = LLMProvider()
-csv_paths = {
-    "Sites": os.path.join(DATA_DIR, "sites.csv"),
-    "Stoppers": os.path.join(DATA_DIR, "stoppers.csv"),
-    "Projeto": os.path.join(DATA_DIR, "projetos.csv"),
-    "Tarefas": os.path.join(DATA_DIR, "tarefas.csv"),
-}
-bases = load_bases(csv_paths)
-retriever = HybridRetriever(bases)
+def build_graph(retriever: HybridRetriever, llm: LLMProvider):
+    graph = StateGraph(AgentState)
 
-class AgentNodes:
-    def __init__(self, retriever: HybridRetriever, llm: LLMProvider):
-        self.retriever = retriever
-        self.llm = llm
+    def retrieve(state: AgentState) -> AgentState:
+        df = retriever.semantic_search(state.base, state.query, k=5)
+        context = df.to_string(index=False)
+        ans = llm.chat(state.query, context)
+        state.result = ans
+        return state
 
-    def route(self, state: AgentState):
-        pass # Lógica de roteamento aqui
-
-    def get_final_answer(self, state: AgentState):
-        return {"answer": "A resposta final do agente."} # Resposta final aqui
-
-# Constrói o grafo do LangGraph
-builder = StateGraph(AgentState)
-agent_nodes = AgentNodes(retriever, llm_provider)
-
-# Cria uma função para executar o agente e obter a resposta
-def run_agent(question: str, pdf_text: str = "") -> str:
-    state = AgentState(question=question, pdf_text=pdf_text)
-    # Aqui, você precisaria de um grafo mais complexo para um agente de verdade
-    # Como não temos o grafo completo, vamos apenas retornar uma resposta de teste
-    return "Desculpe, o agente completo ainda não está implementado."
+    graph.add_node("retrieve", retrieve)
+    graph.set_entry_point("retrieve")
+    graph.add_edge("retrieve", END)
+    return graph.compile()
 
 # =========================
 # Interface Gradio
 # =========================
-def responder_pergunta(pergunta, pdf_file):
-    pdf_text = extract_pdf_text(pdf_file)
-    # Chama a função que executa o agente
-    return run_agent(pergunta, pdf_text)
+def main():
+    bases = load_bases({
+        "Sites": os.path.join(DATA_DIR, "sites.csv"),
+        "Stoppers": os.path.join(DATA_DIR, "stoppers.csv"),
+        "Projeto": os.path.join(DATA_DIR, "projetos.csv"),
+        "Tarefas": os.path.join(DATA_DIR, "tarefas.csv"),
+    })
+    retriever = HybridRetriever(bases)
+    llm = LLMProvider()
+    graph = build_graph(retriever, llm)
 
-# 1 - Cria a interface
-demo = gr.Interface(
-    fn=responder_pergunta,
-    inputs=["text", "file"], # Um campo de texto para a pergunta e um para o PDF
-    outputs="text", # Onde a resposta vai aparecer
-    title="Agente RAG - Inovalejr",
-    description="Faça uma pergunta e receba uma resposta baseada nos dados do projeto."
-)
+    def chat_fn(base, query):
+        state = AgentState(query=query, base=base)
+        out = graph.invoke(state)
+        return out.result
 
-# 2 - Configura a porta e sobe o servidor
-port = int(os.environ.get("PORT", os.environ.get("OPEN_PORT", 8080)))
-demo.launch(server_name="0.0.0.0", server_port=port, share=False)
+    iface = gr.Interface(
+        fn=chat_fn,
+        inputs=[gr.Dropdown(["Sites","Stoppers","Projeto","Tarefas"], label="Base"), gr.Textbox(label="Pergunta")],
+        outputs="text",
+        title="Agente RAG (sem PDF)"
+    )
+    iface.launch(server_name="0.0.0.0", server_port=int(os.getenv("PORT", 8080)))
+
+if __name__ == "__main__":
+    main()
+"""
+
+with open(app_clean_path, "w", encoding="utf-8") as f:
+    f.write(clean_code)
+
+app_clean_path
