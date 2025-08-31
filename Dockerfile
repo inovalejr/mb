@@ -1,26 +1,23 @@
-# Usa uma imagem base leve com Python 3.12
-FROM python:3.12-slim
+# Base mais leve
+FROM python:3.11-slim
 
-# Define o diretório de trabalho dentro do container
+# Setar diretório de trabalho
 WORKDIR /app
 
-# Copia o arquivo de dependências
+# Instalar dependências do sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar arquivos do projeto
 COPY requirements.txt .
-
-# Instala as dependências sem cache
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Pré-carrega o modelo da biblioteca sentence-transformers
-RUN python -c 'from sentence_transformers import SentenceTransformer; SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")'
-
-# Define variável de ambiente para o diretório de dados
-ENV DATA_DIR=/app/data
-
-# Copia todos os arquivos do projeto para o container
 COPY . .
 
-# Expõe a porta 8080 para acesso externo
+# Instalar dependências do Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Expor porta usada pelo Fly.io
 EXPOSE 8080
 
-# Comando padrão para iniciar a aplicação
+# Rodar app.py
 CMD ["python", "app.py"]
