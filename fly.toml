@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for 231 on 2025-08-30T17:44:32Z
+# fly.toml app configuration file generated for 2311 on 2025-09-10T15:35:36Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = '231'
-primary_region = 'gig'
+app = '2311'
+primary_region = 'gru'
 
 [build]
 
